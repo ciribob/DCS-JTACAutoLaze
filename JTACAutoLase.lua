@@ -1,11 +1,10 @@
--- User: Ciaran
--- Date: 18/03/2015
--- Time: 20:48
+--
 -- Tells a JTAC to lase a target
 -- Usage: Load the script at the start of the mission. With Trigger Once at start of mission -  JTACAutoLase('Source1', 1688)
 -- Where Source1 is the Group name of the JTAC Group with one and only one JTAC unit.
 --
--- NOTE: Each JTAC must be in a separate group to other JTACS and must not have any other units in it's group
+-- NOTE: Each JTAC must be in a separate group to other JTACS and must not have any other units in it's group.
+-- Group name must be unique and not be the same as any other Unit's name
 --
 -- Bugs and Limitations... JTAC will try to lase targets through buildings... this can be limited by changing the maxDistance
 --

@@ -1,67 +1,70 @@
---
--- Created by IntelliJ IDEA.
 -- User: Ciaran
 -- Date: 18/03/2015
 -- Time: 20:48
 -- Tells a JTAC to lase a target
--- Usage: Load the script at the start of the mission. With Trigger Once at start of mission -  InitSparkleLase('Source1', 1688)
--- Where Source1 is the Group name of the JTAG Group.
+-- Usage: Load the script at the start of the mission. With Trigger Once at start of mission -  JTACAutoLase('Source1', 1688)
+-- Where Source1 is the Group name of the JTAC Group with one and only one JTAC unit.
 --
 -- NOTE: Each JTAC must be in a separate group to other JTACS and must not have any other units in it's group
 --
--- Bugs and Limitations... Jtag will try to laze targets through buildings... this can be limited by changing the maxDistance
+-- Bugs and Limitations... JTAC will try to lase targets through buildings... this can be limited by changing the maxDistance
 --
 -- Last Edit:  20/03/2015 
 --
 -- Change log: Fixed JTAC lasing through terrain. 
 --				Fixed Lase staying on when JTAC Dies
 --				Fixed Lase staying on when target dies and there are no other targets
+--				Addes Radio noise when message is shown
 -- CONFIG
-maxDistanceJTAC = 2500 -- How far a JTAG can "see"
+maxDistanceJTAC = 2500 -- How far a JTAC can "see"
+
+smokeOn=false
+
 -- END CONFIG
 --
--- TODO, make it so JTAC can't lase the same target
--- TODO Make JTAC lase Vehicles first then Soldiers
+-- TODO, make it so JTACs can't lase the same target
+-- TODO Make JTAC lase Vehicles first then Soldiers? Not sure if this is a good idea or not..
 
---[[
-
-    Logic
-    - Initialise with JTAC name
-        - JTAC searches through all groups and picks the nearest non troop to it
-            - starts lazing
-        - if nothing but troops, lase troops
-            - every second, check that unit is still visible, if not restart
-
-        ]]
 
 
 -- Dont Modify below here
 
 GLOBAL_JTAC_LASE = {}
 GLOBAL_JTAC_IR = {}
+GLOBAL_JTAC_SMOKE = {}
 
-function InitSparkleLase(jtacGroupName, laserCode, currentTargetName, currentTargetType)
+function JTACAutoLase(jtacGroupName, laserCode, currentTargetName, currentTargetType)
 
-    -- env.info('InitSparkleLase '..jtacGroupName.." "..laserCode.." "..currentTargetName:toString())
+    -- env.info('JTACAutoLase '..jtacGroupName.." "..laserCode.." "..currentTargetName:toString())
 
     local jtacGroup = getGroup(jtacGroupName)
 
     if jtacGroup == nil or #jtacGroup == 0 then
-        trigger.action.outText("JTAC Group " .. jtacGroupName .. " KIA!", 5)
-		
-		-- clear laser
-		cancelLaze(jtacGroupName)
-		
+     
+     	notify("JTAC Group " .. jtacGroupName .. " KIA!",10)
 		
         return
     end
 
+    -- clear laser - just in case
+    cancelLase(jtacGroupName)
+
     -- search for current unit
+
+    if jtacGroup[1]:isActive() == false then
+
+
+        env.info(jtacGroupName..' Not Active - Waiting 30 seconds')
+        timer.scheduleFunction(timerJTACAutoLase, {jtacGroupName,laserCode,nil,nil} , timer.getTime() + 30)
+
+        return
+
+    end
 
     local enemyUnit = getCurrentUnit(currentTargetName, jtacGroup[1])
 
     if enemyUnit == nil and currentTargetName ~=nil then
-        trigger.action.outText( jtacGroupName .. " target ".. currentTargetType .. " lost. Scanning for Targets. ", 5)
+    	notify(jtacGroupName .. " target ".. currentTargetType .. " lost. Scanning for Targets. ", 10)
     end
 
 
@@ -69,40 +72,51 @@ function InitSparkleLase(jtacGroupName, laserCode, currentTargetName, currentTar
         enemyUnit = findNearestVisibleEnemy(jtacGroup[1])
 		
         if enemyUnit ~= nil then
-            trigger.action.outText(jtacGroupName .. " lazing new target ".. enemyUnit:getTypeName() , 10)
-			currentTargetType = enemyUnit:getTypeName()
+
+            currentTargetType = enemyUnit:getTypeName()
+
+        	notify(jtacGroupName .. " lasing new target ".. enemyUnit:getTypeName() ..'. CODE: '..laserCode , 10)
+
 			
         end
     end
 
     if enemyUnit ~= nil then
 
-        lazeUnit(enemyUnit, jtacGroup[1], jtacGroupName, laserCode)
+        laseUnit(enemyUnit, jtacGroup[1], jtacGroupName, laserCode)
 
      --   env.info('Timer timerSparkleLase '..jtacGroupName.." "..laserCode.." "..enemyUnit:getName())
-        timer.scheduleFunction(timerSparkleLase, {jtacGroupName,laserCode,enemyUnit:getName(),enemyUnit:getTypeName()}, timer.getTime() + 1)
+        timer.scheduleFunction(timerJTACAutoLase, {jtacGroupName,laserCode,enemyUnit:getName(),enemyUnit:getTypeName()}, timer.getTime() + 1)
 
     else
-        env.info('LAZE: No Enemies Nearby')
+        env.info('LASE: No Enemies Nearby')
 
 		-- stop lazing the old spot
-		cancelLaze(jtacGroupName)
+		cancelLase(jtacGroupName)
       --  env.info('Timer Slow timerSparkleLase '..jtacGroupName.." "..laserCode.." "..enemyUnit:getName())
 
-        timer.scheduleFunction(timerSparkleLase, {jtacGroupName,laserCode,nil,nil} , timer.getTime() + 5)
+        timer.scheduleFunction(timerJTACAutoLase, {jtacGroupName,laserCode,nil,nil} , timer.getTime() + 5)
 
     end
 end
 
 
 -- used by the timer function
-function timerSparkleLase(args)
+function timerJTACAutoLase(args)
 
-    InitSparkleLase(args[1], args[2], args[3],args[4])
+    JTACAutoLase(args[1], args[2], args[3],args[4])
 
 end
 
-function cancelLaze(jtacGroupName)
+function notify(message, displayFor)
+
+
+   trigger.action.outTextForCoalition(coalition.side.BLUE, message,displayFor)
+   trigger.action.outSoundForCoalition(coalition.side.BLUE, "radiobeep.ogg")	
+
+end
+
+function cancelLase(jtacGroupName)
 
 	--local index = "JTAC_"..jtacUnit:getID()
 
@@ -130,17 +144,17 @@ function cancelLaze(jtacGroupName)
 
 end
 
-function lazeUnit(enemyUnit, jtacUnit, jtacGroupName,laserCode)
+function laseUnit(enemyUnit, jtacUnit, jtacGroupName,laserCode)
 
-	cancelLaze(jtacGroupName)
+	cancelLase(jtacGroupName)
 
     local spots = {}
 
     local enemyVector = enemyUnit:getPoint()
-    local enemyVectorUpdated = {x = enemyVector.x, y = enemyVector.y + 2, z = enemyVector.z}
+    local enemyVectorUpdated = {x = enemyVector.x, y = enemyVector.y + 2.0, z = enemyVector.z}
     local status, result = pcall(function ()
-        spots['Sparkle'] = Spot.createInfraRed(jtacUnit, {x = 0, y = 2, z = 0}, enemyVectorUpdated)
-        spots['Laser'] = Spot.createLaser(jtacUnit, {x = 0, y = 2, z = 0}, enemyVectorUpdated, laserCode)
+        spots['irPoint'] = Spot.createInfraRed(jtacUnit, {x = 0, y = 2.0, z = 0}, enemyVectorUpdated)
+        spots['laserPoint'] = Spot.createLaser(jtacUnit, {x = 0, y = 2.0, z = 0}, enemyVectorUpdated, laserCode)
         return spots
     end)
 
@@ -149,16 +163,17 @@ function lazeUnit(enemyUnit, jtacUnit, jtacGroupName,laserCode)
     if not status then
         env.error('ERROR: ' .. assert(result), false)
     else
-        if result.Sparkle then
-            local Sparkle = result.Sparkle
-            env.info(jtacUnit:getName() .. ' is Lazing '..enemyUnit:getName())
+        if result.irPoint then
+           
+        --    env.info(jtacUnit:getName() .. ' placed IR Pointer on '..enemyUnit:getName())
 
-            GLOBAL_JTAC_IR[jtacGroupName] = Sparkle --store so we can remove after
+            GLOBAL_JTAC_IR[jtacGroupName] = result.irPoint --store so we can remove after
         end
-        if result.Laser then
-            local Laser = result.Laser
-
-            GLOBAL_JTAC_LASE[jtacGroupName] = Laser
+        if result.laserPoint then
+		
+		--	env.info(jtacUnit:getName() .. ' is Lasing '..enemyUnit:getName()..'. CODE:'..laserCode)
+          
+            GLOBAL_JTAC_LASE[jtacGroupName] = result.laserPoint
 
         end
     end
@@ -184,11 +199,11 @@ function getCurrentUnit(currentTargetName, jtacUnit)
     local jtacPosition = jtacUnit:getPosition()
     local jtacPoint = jtacUnit:getPoint()
 
-    if unit ~=nil and unit:getLife() > 0 then
+    if unit ~=nil and unit:isActive() == true and unit:getLife() > 0 then
 
         -- calc distance
         tempPoint = unit:getPoint()
-        tempPosition = unit:getPosition()
+     --   tempPosition = unit:getPosition()
 
         tempDist = getDistance(tempPoint.x, tempPoint.z, jtacPoint.x, jtacPoint.z)
         if tempDist < maxDistanceJTAC  then
@@ -240,28 +255,32 @@ function findNearestVisibleEnemy(jtacUnit)
 
                 for x = 1, #units do
 
-                    -- calc distance
-                    tempPoint = units[x]:getPoint()
-                    tempPosition = units[x]:getPosition()
+                	if units[x]:isActive() == true then
 
-                    tempDist = getDistance(tempPoint.x, tempPoint.z, jtacPoint.x, jtacPoint.z)
+                        -- calc distance
+                        tempPoint = units[x]:getPoint()
+                       -- tempPosition = units[x]:getPosition()
 
-               --     env.info("tempDist" ..tempDist)
-                --    env.info("maxDistanceJTAC" ..maxDistanceJTAC)
+                        tempDist = getDistance(tempPoint.x, tempPoint.z, jtacPoint.x, jtacPoint.z)
 
-                    if tempDist < maxDistanceJTAC and tempDist < nearestDistance then
+                   --     env.info("tempDist" ..tempDist)
+                    --    env.info("maxDistanceJTAC" ..maxDistanceJTAC)
 
-						local offsetEnemyPos = {x = tempPoint.x, y = tempPoint.y + 2.0 , z = tempPoint.z }
-						local offsetJTACPos = {x = jtacPoint.x, y = jtacPoint.y+2.0 , z = jtacPoint.z}
-			
-			
-                        -- calc visible
-                        if land.isVisible(offsetEnemyPos,offsetJTACPos) then
+                        if tempDist < maxDistanceJTAC and tempDist < nearestDistance then
 
-                            nearestDistance = tempDist
-                            nearestUnit = units[x]
+                            local offsetEnemyPos = {x = tempPoint.x, y = tempPoint.y + 2.0 , z = tempPoint.z }
+                            local offsetJTACPos = {x = jtacPoint.x, y = jtacPoint.y+2.0 , z = jtacPoint.z}
 
+
+                            -- calc visible
+                            if land.isVisible(offsetEnemyPos,offsetJTACPos) then
+
+                                nearestDistance = tempDist
+                                nearestUnit = units[x]
+
+                            end
                         end
+
                     end
                 end
             end
@@ -278,7 +297,7 @@ function findNearestVisibleEnemy(jtacUnit)
 end
 
 
--- Returns only alive units from group
+-- Returns only alive units from group but the group / unit may not be active
 
 function getGroup(groupName)
 
@@ -308,14 +327,19 @@ end
 function getDistance(xUnit, yUnit, xZone, yZone)
     local xDiff = xUnit - xZone
     local yDiff = yUnit - yZone
---
---    env.info("xUnit" ..xUnit)
---    env.info("yUnit" ..yUnit)
---    env.info("xZone" ..xZone)
---    env.info("yZone" ..yZone)
 
     return math.sqrt(xDiff * xDiff + yDiff * yDiff)
 end
 
+--[[
+
+    Logic
+    - Initialise with JTAC name
+        - JTAC searches through all groups and picks the nearest (non troop?) target to it
+            - starts lazing
+        - if nothing but troops, lase troops
+            - every second, check that unit is still visible, if not restart
+
+        ]]
 
 

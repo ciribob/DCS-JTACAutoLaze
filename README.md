@@ -1,13 +1,13 @@
-# DCS-JTACAutoLaze
-Auto lazes targets in DCS
+# DCS-JTACAutoLase
+Auto lases targets in DCS
 
-Test mission showing two JTACS who will automatically lase targets for you!
+Test mission showing two JTACS who will automatically lase targets for you.
 
-All it needs is a mission start trigger with  
+All it needs is a mission start trigger with the code below as a DO SCRIPT 
 
-InitSparkleLase('JTAC1', 1688)
+JTACAutoLase('JTAC1', 1688)
 
 JTAC1 refers to a group containing only one JTAC and the second parameter is the laser code
 
-Multiple JTACS can be used if you want by just adding more DO Script triggers to the mission start trigger but they must all
-be in different groups
+Multiple JTACS can be used if you want by just adding more DO Script triggers to the mission start trigger but all JTACS must
+be in different groups of one vehicle

@@ -15,86 +15,141 @@
 --				Fixed Lase staying on when target dies and there are no other targets
 --				Addes Radio noise when message is shown
 -- CONFIG
-maxDistanceJTAC = 2500 -- How far a JTAC can "see"
+JTAC_maxDistance = 2500 -- How far a JTAC can "see"
 
-smokeOn=false
+JTAC_smokeOn = true
+
+JTAC_jtacStatusF10 = true
 
 -- END CONFIG
 --
 -- TODO, make it so JTACs can't lase the same target
 -- TODO Make JTAC lase Vehicles first then Soldiers? Not sure if this is a good idea or not..
 
-
-
 -- Dont Modify below here
 
 GLOBAL_JTAC_LASE = {}
 GLOBAL_JTAC_IR = {}
 GLOBAL_JTAC_SMOKE = {}
+GLOBAL_JTAC_UNITS = {} -- list of JTAC units for f10 command
+GLOBAL_JTAC_CURRENT_TARGETS = {}
+GLOBAL_JTAC_RADIO_ADDED = {} --keeps track of who's had the radio command added
 
-function JTACAutoLase(jtacGroupName, laserCode, currentTargetName, currentTargetType)
+--- TODO Change back to make it so we have to lookup JTAC unit and enemy unit each time. When either dies script crashes silently!
+
+function JTACAutoLase(jtacGroupName, laserCode)
 
     -- env.info('JTACAutoLase '..jtacGroupName.." "..laserCode.." "..currentTargetName:toString())
-
-    local jtacGroup = getGroup(jtacGroupName)
-
-    if jtacGroup == nil or #jtacGroup == 0 then
-     
-     	notify("JTAC Group " .. jtacGroupName .. " KIA!",10)
-		
-        return
-    end
 
     -- clear laser - just in case
     cancelLase(jtacGroupName)
 
+    local jtacGroup = getGroup(jtacGroupName)
+    local jtacUnit
+
+    if jtacGroup == nil or #jtacGroup == 0 then
+
+        notify("JTAC Group " .. jtacGroupName .. " KIA!",10)
+
+        --remove from list
+        GLOBAL_JTAC_UNITS[jtacGroupName] = nil
+
+        cleanupJTAC(jtacGroupName)
+
+        return
+    else
+
+        jtacUnit = jtacGroup[1]
+        --add to list
+        GLOBAL_JTAC_UNITS[jtacGroupName] =jtacUnit:getName()
+    end
+
+
     -- search for current unit
 
-    if jtacGroup[1]:isActive() == false then
+    if jtacUnit:isActive() == false then
 
+        cleanupJTAC(jtacGroupName)
 
         env.info(jtacGroupName..' Not Active - Waiting 30 seconds')
-        timer.scheduleFunction(timerJTACAutoLase, {jtacGroupName,laserCode,nil,nil} , timer.getTime() + 30)
+        timer.scheduleFunction(timerJTACAutoLase, {jtacGroupName,laserCode} , timer.getTime() + 30)
 
         return
 
     end
 
-    local enemyUnit = getCurrentUnit(currentTargetName, jtacGroup[1])
+    local enemyUnit = getCurrentUnit(jtacUnit,jtacGroupName)
 
-    if enemyUnit == nil and currentTargetName ~=nil then
-    	notify(jtacGroupName .. " target ".. currentTargetType .. " lost. Scanning for Targets. ", 10)
+    if enemyUnit == nil and GLOBAL_JTAC_CURRENT_TARGETS[jtacGroupName] ~=nil then
+
+		local tempUnitInfo = GLOBAL_JTAC_CURRENT_TARGETS[jtacGroupName]
+
+        env.info("TEMP UNIT INFO: "..tempUnitInfo.name.." "..tempUnitInfo.unitType)
+
+        local tempUnit= Unit.getByName(tempUnitInfo.name)
+		
+        if tempUnit ~=nil and tempUnit:getLife() > 0 and tempUnit:isActive() == true then
+    	    notify(jtacGroupName .. " target ".. tempUnitInfo.unitType .. " lost. Scanning for Targets. ", 10)
+        else
+            notify(jtacGroupName .. " target "..  tempUnitInfo.unitType .. " KIA. Good Job! Scanning for Targets. ", 10)
+        end
+
+        --remove from smoke list
+        GLOBAL_JTAC_SMOKE[tempUnitInfo.name] = nil
+
+        -- remove from target list
+        GLOBAL_JTAC_CURRENT_TARGETS[jtacGroupName] = nil
     end
 
 
     if enemyUnit == nil then
-        enemyUnit = findNearestVisibleEnemy(jtacGroup[1])
+        enemyUnit = findNearestVisibleEnemy(jtacUnit)
 		
         if enemyUnit ~= nil then
 
-            currentTargetType = enemyUnit:getTypeName()
+            -- store current target for easy lookup
+            GLOBAL_JTAC_CURRENT_TARGETS[jtacGroupName] = {name =enemyUnit:getName(), unitType = enemyUnit:getTypeName() }
 
         	notify(jtacGroupName .. " lasing new target ".. enemyUnit:getTypeName() ..'. CODE: '..laserCode , 10)
 
-			
+            -- create smoke
+            if JTAC_smokeOn == true then
+
+                --create first smoke
+                createSmokeMarker(enemyUnit)
+
+            end
+
         end
     end
 
     if enemyUnit ~= nil then
 
-        laseUnit(enemyUnit, jtacGroup[1], jtacGroupName, laserCode)
+        laseUnit(enemyUnit, jtacUnit, jtacGroupName, laserCode)
 
      --   env.info('Timer timerSparkleLase '..jtacGroupName.." "..laserCode.." "..enemyUnit:getName())
-        timer.scheduleFunction(timerJTACAutoLase, {jtacGroupName,laserCode,enemyUnit:getName(),enemyUnit:getTypeName()}, timer.getTime() + 1)
+        timer.scheduleFunction(timerJTACAutoLase, {jtacGroupName,laserCode}, timer.getTime() + 1)
+
+
+        if JTAC_smokeOn == true then
+            local nextSmokeTime = GLOBAL_JTAC_SMOKE[enemyUnit:getName()]
+
+            --recreate smoke marker after 5 mins
+            if nextSmokeTime ~= nil and nextSmokeTime < timer.getTime() then
+
+              createSmokeMarker(enemyUnit)
+
+            end
+        end
 
     else
-        env.info('LASE: No Enemies Nearby')
+       -- env.info('LASE: No Enemies Nearby')
 
 		-- stop lazing the old spot
 		cancelLase(jtacGroupName)
       --  env.info('Timer Slow timerSparkleLase '..jtacGroupName.." "..laserCode.." "..enemyUnit:getName())
 
-        timer.scheduleFunction(timerJTACAutoLase, {jtacGroupName,laserCode,nil,nil} , timer.getTime() + 5)
+        timer.scheduleFunction(timerJTACAutoLase, {jtacGroupName,laserCode} , timer.getTime() + 5)
 
     end
 end
@@ -103,9 +158,21 @@ end
 -- used by the timer function
 function timerJTACAutoLase(args)
 
-    JTACAutoLase(args[1], args[2], args[3],args[4])
+    JTACAutoLase(args[1], args[2])
 
 end
+
+function cleanupJTAC(jtacGroupName)
+    -- clear laser - just in case
+    cancelLase(jtacGroupName)
+
+    -- Cleanup
+    GLOBAL_JTAC_UNITS[jtacGroupName] = nil
+
+    GLOBAL_JTAC_CURRENT_TARGETS[jtacGroupName] = nil
+
+end
+
 
 function notify(message, displayFor)
 
@@ -113,6 +180,16 @@ function notify(message, displayFor)
    trigger.action.outTextForCoalition(coalition.side.BLUE, message,displayFor)
    trigger.action.outSoundForCoalition(coalition.side.BLUE, "radiobeep.ogg")	
 
+end
+
+function createSmokeMarker(enemyUnit)
+
+    --recreate in 5 mins
+    GLOBAL_JTAC_SMOKE[enemyUnit:getName()] = timer.getTime() +300.0
+
+    -- move smoke 2 meters above target for ease
+    local enemyPoint = enemyUnit:getPoint()
+    trigger.action.smoke({x = enemyPoint.x, y = enemyPoint.y + 2.0, z = enemyPoint.z},trigger.smokeColor.Red)
 end
 
 function cancelLase(jtacGroupName)
@@ -183,13 +260,14 @@ function laseUnit(enemyUnit, jtacUnit, jtacGroupName,laserCode)
 end
 
 -- get currently selected unit and check they're still in range
-function getCurrentUnit(currentTargetName, jtacUnit)
+function getCurrentUnit(jtacUnit,jtacGroupName)
 
-    if currentTargetName == nil then
-        return nil
+
+    local unit = nil
+
+    if GLOBAL_JTAC_CURRENT_TARGETS[jtacGroupName] ~=nil then
+       unit =  Unit.getByName(GLOBAL_JTAC_CURRENT_TARGETS[jtacGroupName].name)
     end
-
-    local unit = Unit.getByName(currentTargetName)
 
     local tempPoint = nil
     local tempDist = nil
@@ -198,14 +276,14 @@ function getCurrentUnit(currentTargetName, jtacUnit)
     local jtacPosition = jtacUnit:getPosition()
     local jtacPoint = jtacUnit:getPoint()
 
-    if unit ~=nil and unit:isActive() == true and unit:getLife() > 0 then
+    if unit ~=nil and unit:getLife() > 0 and unit:isActive() == true then
 
         -- calc distance
         tempPoint = unit:getPoint()
      --   tempPosition = unit:getPosition()
 
         tempDist = getDistance(tempPoint.x, tempPoint.z, jtacPoint.x, jtacPoint.z)
-        if tempDist < maxDistanceJTAC  then
+        if tempDist < JTAC_maxDistance  then
             -- calc visible
 			
 			-- check slightly above the target as rounding errors can cause issues, plus the unit has some height anyways
@@ -233,7 +311,7 @@ function findNearestVisibleEnemy(jtacUnit)
     local groupName = nil
 
     local nearestUnit = nil
-    local nearestDistance = maxDistanceJTAC
+    local nearestDistance = JTAC_maxDistance
 
     local redGroups = coalition.getGroups(1, Group.Category.GROUND)
 
@@ -263,9 +341,9 @@ function findNearestVisibleEnemy(jtacUnit)
                         tempDist = getDistance(tempPoint.x, tempPoint.z, jtacPoint.x, jtacPoint.z)
 
                    --     env.info("tempDist" ..tempDist)
-                    --    env.info("maxDistanceJTAC" ..maxDistanceJTAC)
+                    --    env.info("JTAC_maxDistance" ..JTAC_maxDistance)
 
-                        if tempDist < maxDistanceJTAC and tempDist < nearestDistance then
+                        if tempDist < JTAC_maxDistance and tempDist < nearestDistance then
 
                             local offsetEnemyPos = {x = tempPoint.x, y = tempPoint.y + 2.0 , z = tempPoint.z }
                             local offsetJTACPos = {x = jtacPoint.x, y = jtacPoint.y+2.0 , z = jtacPoint.z}
@@ -328,6 +406,76 @@ function getDistance(xUnit, yUnit, xZone, yZone)
     local yDiff = yUnit - yZone
 
     return math.sqrt(xDiff * xDiff + yDiff * yDiff)
+end
+
+function getJTACStatus()
+
+    --returns the status of all JTAC units
+
+    local jtacGroupName = nil
+    local jtacUnit = nil
+    local jtacUnitName= nil
+
+    local message = "JTAC STATUS: \n\n"
+
+    for jtacGroupName,jtacUnitName in pairs(GLOBAL_JTAC_UNITS) do
+
+        --look up units
+        jtacUnit = Unit.getByName(jtacUnitName)
+
+        if jtacUnit~=nil and jtacUnit:getLife() > 0 and jtacUnit:isActive() == true then
+
+            local enemyUnit = getCurrentUnit(jtacUnit,jtacGroupName)
+
+            if enemyUnit ~= nil and enemyUnit:getLife() > 0 and enemyUnit:isActive() == true  then
+                message = message ..""..jtacGroupName .. " currently targeting ".. enemyUnit:getTypeName().."\n"
+            else
+                message = message ..""..jtacGroupName .. " searching for targets\n"
+            end
+
+        end
+
+    end
+	
+	  notify(message,10)
+	
+end
+
+
+-- Radio command for players (F10 Menu)
+
+function addRadioCommands()
+
+	--looop over all players and add command
+--    missionCommands.addCommandForCoalition( coalition.side.BLUE, "JTAC Status" ,nil, getJTACStatus ,nil)
+
+    timer.scheduleFunction(addRadioCommands, nil, timer.getTime() + 10)
+
+    local blueGroups = coalition.getGroups(coalition.side.BLUE)
+    local x = 1
+
+    if blueGroups ~= nil then
+        for x, tmpGroup in pairs(blueGroups) do
+
+
+            local index ="GROUP_".. Group.getID(tmpGroup)
+         --   env.info("adding command for "..index)
+            if GLOBAL_JTAC_RADIO_ADDED[index] == nil then
+               -- env.info("about command for "..index)
+                missionCommands.addCommandForGroup( Group.getID(tmpGroup) , "JTAC Status" ,nil, getJTACStatus ,nil )
+                GLOBAL_JTAC_RADIO_ADDED[index] = true
+                env.info("Added command for "..index)
+            end
+        end
+
+    end
+
+
+
+end
+
+if JTAC_jtacStatusF10 == true then
+    timer.scheduleFunction(addRadioCommands, nil, timer.getTime() + 10)
 end
 
 --[[

@@ -36,6 +36,8 @@ the mission but there can be a delay of up to 30 seconds after activation for th
 
 You can also run the code at any time if a JTAC is dynamically added to the map as long as you know the Group name of the JTAC.
 
-Last Edit:  26/03/2015
+Last Edit:  04/04/2015
+
+Last Change: Changed lazing code to give better tracking ability. 
 
 

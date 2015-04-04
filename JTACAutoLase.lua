@@ -35,9 +35,12 @@ the mission but there can be a delay of up to 30 seconds after activation for th
 
 You can also run the code at any time if a JTAC is dynamically added to the map as long as you know the Group name of the JTAC.
 
-Last Edit:  26/03/2015
+Last Edit:  04/04/2015
 
-Change log:     Fixed JTAC lasing through terrain.
+Change log:
+                Changed Lasing method to update laser marker rather than create and destroy
+                    - This gives much better tracking behaviour!
+                Fixed JTAC lasing through terrain.
 				Fixed Lase staying on when JTAC Dies
 				Fixed Lase staying on when target dies and there are no other targets
 				Added Radio noise when message is shown
@@ -71,7 +74,7 @@ function JTACAutoLase(jtacGroupName, laserCode)
     -- env.info('JTACAutoLase '..jtacGroupName.." "..laserCode.." "..currentTargetName:toString())
 
     -- clear laser - just in case
-    cancelLase(jtacGroupName)
+   -- cancelLase(jtacGroupName)
 
     local jtacGroup = getGroup(jtacGroupName)
     local jtacUnit
@@ -127,6 +130,10 @@ function JTACAutoLase(jtacGroupName, laserCode)
 
         -- remove from target list
         GLOBAL_JTAC_CURRENT_TARGETS[jtacGroupName] = nil
+
+        --stop lasing
+        cancelLase(jtacGroupName)
+
     end
 
 
@@ -242,36 +249,58 @@ end
 
 function laseUnit(enemyUnit, jtacUnit, jtacGroupName, laserCode)
 
-    cancelLase(jtacGroupName)
+    --cancelLase(jtacGroupName)
 
     local spots = {}
 
     local enemyVector = enemyUnit:getPoint()
     local enemyVectorUpdated = { x = enemyVector.x, y = enemyVector.y + 2.0, z = enemyVector.z }
-    local status, result = pcall(function()
-        spots['irPoint'] = Spot.createInfraRed(jtacUnit, { x = 0, y = 2.0, z = 0 }, enemyVectorUpdated)
-        spots['laserPoint'] = Spot.createLaser(jtacUnit, { x = 0, y = 2.0, z = 0 }, enemyVectorUpdated, laserCode)
-        return spots
-    end)
 
-    --  env.info('Loaded Lazing')
+    local oldLase = GLOBAL_JTAC_LASE[jtacGroupName]
+    local oldIR = GLOBAL_JTAC_IR[jtacGroupName]
 
-    if not status then
-        env.error('ERROR: ' .. assert(result), false)
+    if oldLase == nil or oldIR == nil then
+
+        -- create lase
+
+        local status, result = pcall(function()
+            spots['irPoint'] = Spot.createInfraRed(jtacUnit, { x = 0, y = 2.0, z = 0 }, enemyVectorUpdated)
+            spots['laserPoint'] = Spot.createLaser(jtacUnit, { x = 0, y = 2.0, z = 0 }, enemyVectorUpdated, laserCode)
+            return spots
+        end)
+
+        if not status then
+            env.error('ERROR: ' .. assert(result), false)
+        else
+            if result.irPoint then
+
+                --    env.info(jtacUnit:getName() .. ' placed IR Pointer on '..enemyUnit:getName())
+
+                GLOBAL_JTAC_IR[jtacGroupName] = result.irPoint --store so we can remove after
+
+            end
+            if result.laserPoint then
+
+                --	env.info(jtacUnit:getName() .. ' is Lasing '..enemyUnit:getName()..'. CODE:'..laserCode)
+
+                GLOBAL_JTAC_LASE[jtacGroupName] = result.laserPoint
+            end
+        end
+
     else
-        if result.irPoint then
 
-            --    env.info(jtacUnit:getName() .. ' placed IR Pointer on '..enemyUnit:getName())
+        -- update lase
 
-            GLOBAL_JTAC_IR[jtacGroupName] = result.irPoint --store so we can remove after
+        if oldLase~=nil then
+            oldLase:setPoint(enemyVectorUpdated)
         end
-        if result.laserPoint then
 
-            --	env.info(jtacUnit:getName() .. ' is Lasing '..enemyUnit:getName()..'. CODE:'..laserCode)
-
-            GLOBAL_JTAC_LASE[jtacGroupName] = result.laserPoint
+        if oldIR ~= nil then
+            oldIR:setPoint(enemyVectorUpdated)
         end
+
     end
+
 end
 
 -- get currently selected unit and check they're still in range
@@ -438,7 +467,7 @@ function getDistance(xUnit, yUnit, xZone, yZone)
     return math.sqrt(xDiff * xDiff + yDiff * yDiff)
 end
 
--- gets the JTAC status and siplays to coalition units
+-- gets the JTAC status and displays to coalition units
 function getJTACStatus()
 
     --returns the status of all JTAC units
@@ -505,3 +534,23 @@ if JTAC_jtacStatusF10 == true then
 end
 
 
+--DEBUG FUNCTIONS - IGNORE
+--function print_functions(o)
+--
+--    for key,value in pairs(getmetatable(o)) do
+--        env.info(tostring(key) .." ".. tostring(value))
+--    end
+--end
+--
+--function dump_table(o)
+--    if type(o) == 'table' then
+--        local s = '{ '
+--        for k,v in pairs(o) do
+--            if type(k) ~= 'number' then k = '"'..k..'"' end
+--            s = s .. '['..k..'] = ' .. dump_table(v) .. ','
+--        end
+--        return s .. '} '
+--    else
+--        return tostring(o)
+--    end
+--end

@@ -35,9 +35,10 @@ the mission but there can be a delay of up to 30 seconds after activation for th
 
 You can also run the code at any time if a JTAC is dynamically added to the map as long as you know the Group name of the JTAC.
 
-Last Edit:  04/04/2015
+Last Edit:  09/04/2015
 
 Change log:
+				Added Lat / Lon + MGRS to JTAC Target position 
                 Changed Lasing method to update laser marker rather than create and destroy
                     - This gives much better tracking behaviour!
                 Fixed JTAC lasing through terrain.
@@ -47,6 +48,7 @@ Change log:
 				Stop multiple JTACS targeting the same target
 
 
+Parts of MIST used. Source is  https://github.com/mrSkortch/MissionScriptingTools/blob/master/mist.lua
 
 ]]
 
@@ -145,7 +147,7 @@ function JTACAutoLase(jtacGroupName, laserCode)
             -- store current target for easy lookup
             GLOBAL_JTAC_CURRENT_TARGETS[jtacGroupName] = { name = enemyUnit:getName(), unitType = enemyUnit:getTypeName(), unitId = enemyUnit:getID() }
 
-            notify(jtacGroupName .. " lasing new target " .. enemyUnit:getTypeName() .. '. CODE: ' .. laserCode, 10)
+            notify(jtacGroupName .. " lasing new target " .. enemyUnit:getTypeName() .. '. CODE: ' .. laserCode .. " @ "..getPositionString(enemyUnit) , 10)
 
             -- create smoke
             if JTAC_smokeOn == true then
@@ -488,9 +490,9 @@ function getJTACStatus()
             local enemyUnit = getCurrentUnit(jtacUnit, jtacGroupName)
 
             if enemyUnit ~= nil and enemyUnit:getLife() > 0 and enemyUnit:isActive() == true then
-                message = message .. "" .. jtacGroupName .. " currently targeting " .. enemyUnit:getTypeName() .. "\n"
+                message = message .. "" .. jtacGroupName .. " targeting " .. enemyUnit:getTypeName() .." - "..getPositionString(enemyUnit) .. "\n"
             else
-                message = message .. "" .. jtacGroupName .. " searching for targets\n"
+                message = message .. "" .. jtacGroupName .. " searching for targets".." - "..getPositionString(jtacUnit) .."\n"
             end
         end
     end
@@ -527,6 +529,84 @@ function addRadioCommands()
     end
 end
 
+
+function getPositionString(unit)
+
+	local latLngStr = latLngString(unit,3)
+
+	local mgrsString = MGRSString(coord.LLtoMGRS(coord.LOtoLL(unit:getPosition().p)),5)
+
+	return latLngStr .. " - MGRS "..mgrsString
+end
+
+-- source of Function MIST - https://github.com/mrSkortch/MissionScriptingTools/blob/master/mist.lua
+function latLngString(unit, acc)
+
+	local lat, lon = coord.LOtoLL(unit:getPosition().p)
+
+	local latHemi, lonHemi
+	if lat > 0 then
+		latHemi = 'N'
+	else
+		latHemi = 'S'
+	end
+	
+	if lon > 0 then
+		lonHemi = 'E'
+	else
+		lonHemi = 'W'
+	end
+	
+	lat = math.abs(lat)
+	lon = math.abs(lon)
+	
+	local latDeg = math.floor(lat)
+	local latMin = (lat - latDeg)*60
+	
+	local lonDeg = math.floor(lon)
+	local lonMin = (lon - lonDeg)*60
+	
+  -- degrees, decimal minutes.
+	latMin = roundNumber(latMin, acc)
+	lonMin = roundNumber(lonMin, acc)
+	
+	if latMin == 60 then
+		latMin = 0
+		latDeg = latDeg + 1
+	end
+		
+	if lonMin == 60 then
+		lonMin = 0
+		lonDeg = lonDeg + 1
+	end
+	
+	local minFrmtStr -- create the formatting string for the minutes place
+	if acc <= 0 then  -- no decimal place.
+		minFrmtStr = '%02d'
+	else
+		local width = 3 + acc  -- 01.310 - that's a width of 6, for example.
+		minFrmtStr = '%0' .. width .. '.' .. acc .. 'f'
+	end
+	
+	return string.format('%02d', latDeg) .. ' ' .. string.format(minFrmtStr, latMin) .. '\'' .. latHemi .. '   '
+   .. string.format('%02d', lonDeg) .. ' ' .. string.format(minFrmtStr, lonMin) .. '\'' .. lonHemi
+
+end
+
+-- source of Function MIST - https://github.com/mrSkortch/MissionScriptingTools/blob/master/mist.lua
+ function MGRSString(MGRS, acc) 
+	if acc == 0 then
+		return MGRS.UTMZone .. ' ' .. MGRS.MGRSDigraph
+	else
+		return MGRS.UTMZone .. ' ' .. MGRS.MGRSDigraph .. ' ' .. string.format('%0' .. acc .. 'd', roundNumber(MGRS.Easting/(10^(5-acc)), 0)) 
+		       .. ' ' .. string.format('%0' .. acc .. 'd', roundNumber(MGRS.Northing/(10^(5-acc)), 0))
+	end
+end
+-- From http://lua-users.org/wiki/SimpleRound
+ function roundNumber(num, idp)
+  local mult = 10^(idp or 0)
+  return math.floor(num * mult + 0.5) / mult
+end
 
 -- add the radio commands
 if JTAC_jtacStatusF10 == true then

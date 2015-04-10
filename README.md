@@ -5,6 +5,8 @@ of target location using NV Goggles
 
 The JTAC will automatically switch targets when a target is destroyed or goes out of Line of Sight
 
+The JTACs can be configured globally to target only vehicles or troops or all ground targets
+
 **NOTE: LOS doesn't include buildings or tree's... Sorry! **
 
 The script can also be useful in daylight by enabling the JTAC to mark enemy positions with Smoke.
@@ -31,13 +33,37 @@ JTACAutoLase('JTAC1', 1688)
 
 Where JTAC1 is the Group name of the JTAC Group with one and only one JTAC unit and the 1688 is the Laser code.
 
+You can also override global settings set in the script like so:
+
+```lua
+JTACAutoLase('JTAC1', 1688, false,"all") 
+```
+This means no smoke marks for this JTAC and it will target all ground troops
+
+```lua
+JTACAutoLase('JTAC1', 1688, true,"vehicle")
+```
+This smoke marks for this JTAC and it will target ONLY ground vehicles
+
+
+```lua
+JTACAutoLase('JTAC1', 1688, true,"troop")
+```
+This means smoke marks are enabled for this JTAC and it will target ONLY ground troops
+
+
 The script doesn't care if the unit isn't activated when run, as it'll automatically activate when the JTAC is activated in
 the mission but there can be a delay of up to 30 seconds after activation for the JTAC to start searching for targets.
 
 You can also run the code at any time if a JTAC is dynamically added to the map as long as you know the Group name of the JTAC.
 
-Last Edit:  09/04/2015
+The 3 missions demonstrate different ways of using the script with the JTACTest-troops-vehicles demonstrating the ability to induvidually configure each JTAC. Make sure you look in the triggers to see how.
 
-Last Change: Added MGRS and Lat Lon Position to JTAC Status
+Last Edit:  10/04/2015
+
+Last Change: 
+Added Target configuration and global overrides for JTAC
+Added Config option for displaying target location
+Added MGRS and Lat Lon Position to JTAC Status
 
 

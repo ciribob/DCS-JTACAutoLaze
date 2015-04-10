@@ -28,6 +28,18 @@ Run the code below as a DO SCRIPT at the start of the mission, or after a delay 
 
 JTACAutoLase('JTAC1', 1688)
 
+OR
+
+JTACAutoLase('JTAC1', 1688, false,"all") - means no smoke marks for this jtac and it will target all ground troops
+
+OR
+
+JTACAutoLase('JTAC1', 1688, true,"vehicle") - means  smoke marks for this jtac and it will target ONLU ground vehicles
+
+OR
+
+JTACAutoLase('JTAC1', 1688, true,"troop") - means  smoke marks for this jtac and it will target ONLY ground troops
+
 Where JTAC1 is the Group name of the JTAC Group with one and only one JTAC unit.
 
 The script doesn't care if the unit isn't activated when run, as it'll automatically activate when the JTAC is activated in
@@ -38,6 +50,8 @@ You can also run the code at any time if a JTAC is dynamically added to the map 
 Last Edit:  09/04/2015
 
 Change log:
+                Added new config of JTAC targetting to either target only troops or vehicles or all
+                Added new induvidual config of JTAC smoke and location which will override global setting
 				Added Lat / Lon + MGRS to JTAC Target position 
                 Changed Lasing method to update laser marker rather than create and destroy
                     - This gives much better tracking behaviour!
@@ -55,9 +69,13 @@ Parts of MIST used. Source is  https://github.com/mrSkortch/MissionScriptingTool
 -- CONFIG
 JTAC_maxDistance = 2500 -- How far a JTAC can "see" in meters (with LOS)
 
-JTAC_smokeOn = true -- enables marking of target with smoke
+JTAC_smokeOn = true -- enables marking of target with smoke, can be overriden by the JTACAutoLase in editor
 
 JTAC_jtacStatusF10 = true -- enables F10 JTAC Status menu
+
+JTAC_location = true -- shows location in JTAC message, can be overriden by the JTACAutoLase in editor
+
+JTAC_lock =  "all" -- "vehicle" OR "troop" OR "all" forces JTAC to only lock vehicles or troops or all ground units 
 
 -- END CONFIG
 
@@ -71,13 +89,18 @@ GLOBAL_JTAC_CURRENT_TARGETS = {}
 GLOBAL_JTAC_RADIO_ADDED = {} --keeps track of who's had the radio command added
 
 
-function JTACAutoLase(jtacGroupName, laserCode)
+function JTACAutoLase(jtacGroupName, laserCode,smoke,lock)
 
-    -- env.info('JTACAutoLase '..jtacGroupName.." "..laserCode.." "..currentTargetName:toString())
+    if smoke == nil then
+    
+        smoke = JTAC_smokeOn  
+    end
 
-    -- clear laser - just in case
-   -- cancelLase(jtacGroupName)
-
+    if lock == nil then
+    
+        lock = JTAC_lock
+    end
+    
     local jtacGroup = getGroup(jtacGroupName)
     local jtacUnit
 
@@ -106,7 +129,7 @@ function JTACAutoLase(jtacGroupName, laserCode)
         cleanupJTAC(jtacGroupName)
 
         env.info(jtacGroupName .. ' Not Active - Waiting 30 seconds')
-        timer.scheduleFunction(timerJTACAutoLase, { jtacGroupName, laserCode }, timer.getTime() + 30)
+        timer.scheduleFunction(timerJTACAutoLase, { jtacGroupName, laserCode,smoke,lock}, timer.getTime() + 30)
 
         return
     end
@@ -140,17 +163,17 @@ function JTACAutoLase(jtacGroupName, laserCode)
 
 
     if enemyUnit == nil then
-        enemyUnit = findNearestVisibleEnemy(jtacUnit)
+        enemyUnit = findNearestVisibleEnemy(jtacUnit,lock)
 
         if enemyUnit ~= nil then
 
             -- store current target for easy lookup
             GLOBAL_JTAC_CURRENT_TARGETS[jtacGroupName] = { name = enemyUnit:getName(), unitType = enemyUnit:getTypeName(), unitId = enemyUnit:getID() }
 
-            notify(jtacGroupName .. " lasing new target " .. enemyUnit:getTypeName() .. '. CODE: ' .. laserCode .. " @ "..getPositionString(enemyUnit) , 10)
+            notify(jtacGroupName .. " lasing new target " .. enemyUnit:getTypeName() .. '. CODE: ' .. laserCode ..getPositionString(enemyUnit) , 10)
 
             -- create smoke
-            if JTAC_smokeOn == true then
+            if smoke == true then
 
                 --create first smoke
                 createSmokeMarker(enemyUnit)
@@ -163,10 +186,10 @@ function JTACAutoLase(jtacGroupName, laserCode)
         laseUnit(enemyUnit, jtacUnit, jtacGroupName, laserCode)
 
         --   env.info('Timer timerSparkleLase '..jtacGroupName.." "..laserCode.." "..enemyUnit:getName())
-        timer.scheduleFunction(timerJTACAutoLase, { jtacGroupName, laserCode }, timer.getTime() + 1)
+        timer.scheduleFunction(timerJTACAutoLase, { jtacGroupName, laserCode, smoke,lock }, timer.getTime() + 1)
 
 
-        if JTAC_smokeOn == true then
+        if smoke == true then
             local nextSmokeTime = GLOBAL_JTAC_SMOKE[enemyUnit:getName()]
 
             --recreate smoke marker after 5 mins
@@ -183,7 +206,7 @@ function JTACAutoLase(jtacGroupName, laserCode)
         cancelLase(jtacGroupName)
         --  env.info('Timer Slow timerSparkleLase '..jtacGroupName.." "..laserCode.." "..enemyUnit:getName())
 
-        timer.scheduleFunction(timerJTACAutoLase, { jtacGroupName, laserCode }, timer.getTime() + 5)
+        timer.scheduleFunction(timerJTACAutoLase, { jtacGroupName, laserCode, smoke,lock }, timer.getTime() + 5)
     end
 end
 
@@ -191,7 +214,7 @@ end
 -- used by the timer function
 function timerJTACAutoLase(args)
 
-    JTACAutoLase(args[1], args[2])
+    JTACAutoLase(args[1], args[2], args[3],args[4])
 end
 
 function cleanupJTAC(jtacGroupName)
@@ -346,7 +369,7 @@ end
 
 
 -- Find nearest enemy to JTAC that isn't blocked by terrain
-function findNearestVisibleEnemy(jtacUnit)
+function findNearestVisibleEnemy(jtacUnit, targetType)
 
     local x = 1
     local i = 1
@@ -378,8 +401,20 @@ function findNearestVisibleEnemy(jtacUnit)
 
                     --check to see if a JTAC has already targeted this unit
                     local targeted = alreadyTarget(jtacUnit,units[x])
+                    local allowedTarget = true
 
-                    if units[x]:isActive() == true and targeted == false then
+                    if targetType == "vehicle" then
+                        
+                        allowedTarget = isVehicle(units[x])
+
+                    elseif targetType == "troop" then
+
+                        allowedTarget = isInfantry(units[x])
+
+                    end
+
+
+                    if units[x]:isActive() == true and targeted == false and allowedTarget == true then
 
                         -- calc distance
                         tempPoint = units[x]:getPoint()
@@ -490,9 +525,9 @@ function getJTACStatus()
             local enemyUnit = getCurrentUnit(jtacUnit, jtacGroupName)
 
             if enemyUnit ~= nil and enemyUnit:getLife() > 0 and enemyUnit:isActive() == true then
-                message = message .. "" .. jtacGroupName .. " targeting " .. enemyUnit:getTypeName() .." - "..getPositionString(enemyUnit) .. "\n"
+                message = message .. "" .. jtacGroupName .. " targeting " .. enemyUnit:getTypeName() .. getPositionString(enemyUnit) .. "\n"
             else
-                message = message .. "" .. jtacGroupName .. " searching for targets".." - "..getPositionString(jtacUnit) .."\n"
+                message = message .. "" .. jtacGroupName .. " searching for targets" .. getPositionString(jtacUnit) .."\n"
             end
         end
     end
@@ -529,14 +564,49 @@ function addRadioCommands()
     end
 end
 
+function isInfantry(unit)
+
+    local typeName = unit:getTypeName()
+
+    --type coerce tostring
+    typeName = string.lower(typeName.."")
+
+    local soldierType = { "infantry","paratrooper","stinger","manpad"}
+
+    for key,value in pairs(soldierType) do
+        if string.match(typeName, value) then
+            return true
+        end
+    end
+
+    return false
+
+end
+
+-- assume anything that isnt soldier is vehicle
+function isVehicle(unit)
+
+    if isInfantry(unit) then
+        return false
+    end
+
+    return true
+
+end
+    
 
 function getPositionString(unit)
+
+    if JTAC_location == false then
+        return ""
+    end
 
 	local latLngStr = latLngString(unit,3)
 
 	local mgrsString = MGRSString(coord.LLtoMGRS(coord.LOtoLL(unit:getPosition().p)),5)
 
-	return latLngStr .. " - MGRS "..mgrsString
+	return " @ " .. latLngStr .. " - MGRS "..mgrsString
+
 end
 
 -- source of Function MIST - https://github.com/mrSkortch/MissionScriptingTools/blob/master/mist.lua
@@ -612,6 +682,7 @@ end
 if JTAC_jtacStatusF10 == true then
     timer.scheduleFunction(addRadioCommands, nil, timer.getTime() + 1)
 end
+
 
 
 --DEBUG FUNCTIONS - IGNORE

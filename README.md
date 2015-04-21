@@ -45,23 +45,40 @@ JTACAutoLase('JTAC1', 1688, true,"vehicle")
 ```
 This smoke marks for this JTAC and it will target ONLY ground vehicles
 
-
 ```lua
 JTACAutoLase('JTAC1', 1688, true,"troop")
 ```
 This means smoke marks are enabled for this JTAC and it will target ONLY ground troops
 
+```lua
+JTACAutoLase('JTAC1', 1688, true,"troop",1)
+```
+This means smoke marks are enabled for this JTAC and it will target ONLY ground troops AND smoke colour will be Red
+
+```lua
+JTACAutoLase('JTAC1', 1688, true,"troop",0)
+```
+This means smoke marks are enabled for this JTAC and it will target ONLY ground troops AND smoke colour will be Green
+
+```lua
+JTACAutoLase('JTAC1', 1688, true,"all", 4) 
+```
+This means no smoke marks for this JTAC and it will target all ground troops AND mark with Blue smoke
+
+Smoke colours are: Green = 0 , Red = 1, White = 2, Orange = 3, Blue = 4
 
 The script doesn't care if the unit isn't activated when run, as it'll automatically activate when the JTAC is activated in
 the mission but there can be a delay of up to 30 seconds after activation for the JTAC to start searching for targets.
 
 You can also run the code at any time if a JTAC is dynamically added to the map as long as you know the Group name of the JTAC.
 
-The 3 missions demonstrate different ways of using the script with the JTACTest-troops-vehicles demonstrating the ability to induvidually configure each JTAC. Make sure you look in the triggers to see how.
+The 3 missions demonstrate different ways of using the script with the JTACTest-troops-vehicles demonstrating the ability to individually configure each JTAC. Make sure you look in the triggers to see how.
 
-Last Edit:  10/04/2015
+Last Edit:  21/04/2015
 
 Last Change: 
+Added laser code to f10 status
+Added new config of JTAC smoke colour globally or per JTAC
 Added Target configuration and global overrides for JTAC
 Added Config option for displaying target location
 Added MGRS and Lat Lon Position to JTAC Status

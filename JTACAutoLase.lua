@@ -34,11 +34,15 @@ JTACAutoLase('JTAC1', 1688, false,"all") - means no smoke marks for this jtac an
 
 OR
 
-JTACAutoLase('JTAC1', 1688, true,"vehicle") - means  smoke marks for this jtac and it will target ONLU ground vehicles
+JTACAutoLase('JTAC1', 1688, true,"vehicle") - means  smoke marks for this jtac and it will target ONLY ground vehicles
 
 OR
 
 JTACAutoLase('JTAC1', 1688, true,"troop") - means  smoke marks for this jtac and it will target ONLY ground troops
+
+OR
+
+JTACAutoLase('JTAC1', 1688, true,"all", 4) - means BLUE smoke marks for this jtac and it will target all ground troops
 
 Where JTAC1 is the Group name of the JTAC Group with one and only one JTAC unit.
 
@@ -47,9 +51,10 @@ the mission but there can be a delay of up to 30 seconds after activation for th
 
 You can also run the code at any time if a JTAC is dynamically added to the map as long as you know the Group name of the JTAC.
 
-Last Edit:  09/04/2015
+Last Edit:  21/04/2015
 
 Change log:
+				Added new config of JTAC smoke colour globally or per JTAC
                 Added new config of JTAC targetting to either target only troops or vehicles or all
                 Added new induvidual config of JTAC smoke and location which will override global setting
 				Added Lat / Lon + MGRS to JTAC Target position 
@@ -71,6 +76,8 @@ JTAC_maxDistance = 2500 -- How far a JTAC can "see" in meters (with LOS)
 
 JTAC_smokeOn = true -- enables marking of target with smoke, can be overriden by the JTACAutoLase in editor
 
+JTAC_smokeColour = 1 -- Green = 0 , Red = 1, White = 2, Orange = 3, Blue = 4
+
 JTAC_jtacStatusF10 = true -- enables F10 JTAC Status menu
 
 JTAC_location = true -- shows location in JTAC message, can be overriden by the JTACAutoLase in editor
@@ -87,9 +94,10 @@ GLOBAL_JTAC_SMOKE = {}
 GLOBAL_JTAC_UNITS = {} -- list of JTAC units for f10 command
 GLOBAL_JTAC_CURRENT_TARGETS = {}
 GLOBAL_JTAC_RADIO_ADDED = {} --keeps track of who's had the radio command added
+GLOBAL_JTAC_LASER_CODES = {} -- keeps track of laser codes for jtac
 
 
-function JTACAutoLase(jtacGroupName, laserCode,smoke,lock)
+function JTACAutoLase(jtacGroupName, laserCode,smoke,lock,colour)
 
     if smoke == nil then
     
@@ -100,6 +108,12 @@ function JTACAutoLase(jtacGroupName, laserCode,smoke,lock)
     
         lock = JTAC_lock
     end
+
+    if colour == nil then
+    	colour = JTAC_smokeColour
+    end
+
+    GLOBAL_JTAC_LASER_CODES[jtacGroupName] = laserCode
     
     local jtacGroup = getGroup(jtacGroupName)
     local jtacUnit
@@ -119,6 +133,8 @@ function JTACAutoLase(jtacGroupName, laserCode,smoke,lock)
         jtacUnit = jtacGroup[1]
         --add to list
         GLOBAL_JTAC_UNITS[jtacGroupName] = jtacUnit:getName()
+
+
     end
 
 
@@ -129,7 +145,7 @@ function JTACAutoLase(jtacGroupName, laserCode,smoke,lock)
         cleanupJTAC(jtacGroupName)
 
         env.info(jtacGroupName .. ' Not Active - Waiting 30 seconds')
-        timer.scheduleFunction(timerJTACAutoLase, { jtacGroupName, laserCode,smoke,lock}, timer.getTime() + 30)
+        timer.scheduleFunction(timerJTACAutoLase, { jtacGroupName, laserCode,smoke,lock,colour}, timer.getTime() + 30)
 
         return
     end
@@ -176,7 +192,7 @@ function JTACAutoLase(jtacGroupName, laserCode,smoke,lock)
             if smoke == true then
 
                 --create first smoke
-                createSmokeMarker(enemyUnit)
+                createSmokeMarker(enemyUnit,colour)
             end
         end
     end
@@ -186,7 +202,7 @@ function JTACAutoLase(jtacGroupName, laserCode,smoke,lock)
         laseUnit(enemyUnit, jtacUnit, jtacGroupName, laserCode)
 
         --   env.info('Timer timerSparkleLase '..jtacGroupName.." "..laserCode.." "..enemyUnit:getName())
-        timer.scheduleFunction(timerJTACAutoLase, { jtacGroupName, laserCode, smoke,lock }, timer.getTime() + 1)
+        timer.scheduleFunction(timerJTACAutoLase, { jtacGroupName, laserCode, smoke,lock,colour }, timer.getTime() + 1)
 
 
         if smoke == true then
@@ -195,7 +211,7 @@ function JTACAutoLase(jtacGroupName, laserCode,smoke,lock)
             --recreate smoke marker after 5 mins
             if nextSmokeTime ~= nil and nextSmokeTime < timer.getTime() then
 
-                createSmokeMarker(enemyUnit)
+                createSmokeMarker(enemyUnit, colour)
             end
         end
 
@@ -206,7 +222,7 @@ function JTACAutoLase(jtacGroupName, laserCode,smoke,lock)
         cancelLase(jtacGroupName)
         --  env.info('Timer Slow timerSparkleLase '..jtacGroupName.." "..laserCode.." "..enemyUnit:getName())
 
-        timer.scheduleFunction(timerJTACAutoLase, { jtacGroupName, laserCode, smoke,lock }, timer.getTime() + 5)
+        timer.scheduleFunction(timerJTACAutoLase, { jtacGroupName, laserCode, smoke,lock,colour }, timer.getTime() + 5)
     end
 end
 
@@ -235,14 +251,14 @@ function notify(message, displayFor)
     trigger.action.outSoundForCoalition(coalition.side.BLUE, "radiobeep.ogg")
 end
 
-function createSmokeMarker(enemyUnit)
+function createSmokeMarker(enemyUnit,colour)
 
     --recreate in 5 mins
     GLOBAL_JTAC_SMOKE[enemyUnit:getName()] = timer.getTime() + 300.0
 
     -- move smoke 2 meters above target for ease
     local enemyPoint = enemyUnit:getPoint()
-    trigger.action.smoke({ x = enemyPoint.x, y = enemyPoint.y + 2.0, z = enemyPoint.z }, trigger.smokeColor.Red)
+    trigger.action.smoke({ x = enemyPoint.x, y = enemyPoint.y + 2.0, z = enemyPoint.z }, colour)
 end
 
 function cancelLase(jtacGroupName)
@@ -524,8 +540,14 @@ function getJTACStatus()
 
             local enemyUnit = getCurrentUnit(jtacUnit, jtacGroupName)
 
+            local laserCode =  GLOBAL_JTAC_LASER_CODES[jtacGroupName]
+
+            if laserCode == nil then
+            	laserCode = "UNKNOWN"
+            end
+
             if enemyUnit ~= nil and enemyUnit:getLife() > 0 and enemyUnit:isActive() == true then
-                message = message .. "" .. jtacGroupName .. " targeting " .. enemyUnit:getTypeName() .. getPositionString(enemyUnit) .. "\n"
+                message = message .. "" .. jtacGroupName .. " targeting " .. enemyUnit:getTypeName().. " CODE: ".. laserCode .. getPositionString(enemyUnit) .. "\n"
             else
                 message = message .. "" .. jtacGroupName .. " searching for targets" .. getPositionString(jtacUnit) .."\n"
             end

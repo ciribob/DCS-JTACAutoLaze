@@ -72,7 +72,7 @@ Parts of MIST used. Source is  https://github.com/mrSkortch/MissionScriptingTool
 ]]
 
 -- CONFIG
-JTAC_maxDistance = 2500 -- How far a JTAC can "see" in meters (with LOS)
+JTAC_maxDistance = 5000 -- How far a JTAC can "see" in meters (with LOS)
 
 JTAC_smokeOn = true -- enables marking of target with smoke, can be overriden by the JTACAutoLase in editor
 
@@ -83,6 +83,10 @@ JTAC_jtacStatusF10 = true -- enables F10 JTAC Status menu
 JTAC_location = true -- shows location in JTAC message, can be overriden by the JTACAutoLase in editor
 
 JTAC_lock =  "all" -- "vehicle" OR "troop" OR "all" forces JTAC to only lock vehicles or troops or all ground units 
+
+JTAC_AllySide = coalition.side.BLUE
+
+JTAC_EnemySide = coalition.side.RED
 
 -- END CONFIG
 
@@ -245,10 +249,8 @@ end
 
 
 function notify(message, displayFor)
-
-
-    trigger.action.outTextForCoalition(coalition.side.BLUE, message, displayFor)
-    trigger.action.outSoundForCoalition(coalition.side.BLUE, "radiobeep.ogg")
+    trigger.action.outTextForCoalition(JTAC_AllySide, message, displayFor)
+    trigger.action.outSoundForCoalition(JTAC_AllySide, "radiobeep.ogg")
 end
 
 function createSmokeMarker(enemyUnit,colour)
@@ -396,7 +398,7 @@ function findNearestVisibleEnemy(jtacUnit, targetType)
     local nearestUnit = nil
     local nearestDistance = JTAC_maxDistance
 
-    local redGroups = coalition.getGroups(1, Group.Category.GROUND)
+    local enemyGroups = coalition.getGroups(JTAC_EnemySide, Group.Category.GROUND)
 
     local jtacPoint = jtacUnit:getPoint()
     local jtacPosition = jtacUnit:getPosition()
@@ -407,9 +409,9 @@ function findNearestVisibleEnemy(jtacUnit, targetType)
     local tempDist = nil
 
     -- finish this function
-    for i = 1, #redGroups do
-        if redGroups[i] ~= nil then
-            groupName = redGroups[i]:getName()
+    for i = 1, #enemyGroups do
+        if enemyGroups[i] ~= nil then
+            groupName = enemyGroups[i]:getName()
             units = getGroup(groupName)
             if #units > 0 then
 
@@ -563,15 +565,15 @@ end
 function addRadioCommands()
 
     --looop over all players and add command
-    --    missionCommands.addCommandForCoalition( coalition.side.BLUE, "JTAC Status" ,nil, getJTACStatus ,nil)
+    --    missionCommands.addCommandForCoalition( JTAC_AllySide, "JTAC Status" ,nil, getJTACStatus ,nil)
 
     timer.scheduleFunction(addRadioCommands, nil, timer.getTime() + 10)
 
-    local blueGroups = coalition.getGroups(coalition.side.BLUE)
+    local allyGroups = coalition.getGroups(JTAC_AllySide)
     local x = 1
 
-    if blueGroups ~= nil then
-        for x, tmpGroup in pairs(blueGroups) do
+    if allyGroups ~= nil then
+        for x, tmpGroup in pairs(allyGroups) do
 
 
             local index = "GROUP_" .. Group.getID(tmpGroup)

@@ -662,11 +662,11 @@ function latLngString(unit, acc)
 	if JTAC_latLngFormat == "DMS" then	-- degrees, minutes, and seconds.
 		local oldLatMin = latMin
 		latMin = math.floor(latMin)
-		local latSec = mist.utils.round((oldLatMin - latMin)*60, acc)
+		local latSec = roundNumber((oldLatMin - latMin)*60, acc)
 		
 		local oldLonMin = lonMin
 		lonMin = math.floor(lonMin)
-		local lonSec = mist.utils.round((oldLonMin - lonMin)*60, acc)
+		local lonSec = roundNumber((oldLonMin - lonMin)*60, acc)
 		if latSec == 60 then
 			latSec = 0
 			latMin = latMin + 1
@@ -689,8 +689,8 @@ function latLngString(unit, acc)
 		.. string.format('%02d', lonDeg) .. ' ' .. string.format('%02d', lonMin) .. '\' ' .. string.format(secFrmtStr, lonSec) .. '"' .. lonHemi
 
 		else	-- degrees, decimal minutes.
-		latMin = mist.utils.round(latMin, acc)
-		lonMin = mist.utils.round(lonMin, acc)
+		latMin = roundNumber(latMin, acc)
+		lonMin = roundNumber(lonMin, acc)
 
 		if latMin == 60 then
 		latMin = 0

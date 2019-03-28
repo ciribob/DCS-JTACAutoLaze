@@ -84,6 +84,8 @@ JTAC_location = true -- shows location in JTAC message, can be overriden by the 
 
 JTAC_lock =  "all" -- "vehicle" OR "troop" OR "all" forces JTAC to only lock vehicles or troops or all ground units 
 
+JTAC_latLngFormat = "DM" -- location in JTAC message "DMS" = degrees, minutes, seconds or "DM" = degrees, decimal minutes.
+
 -- END CONFIG
 
 -- BE CAREFUL MODIFYING BELOW HERE
@@ -657,32 +659,61 @@ function latLngString(unit, acc)
 	
 	local lonDeg = math.floor(lon)
 	local lonMin = (lon - lonDeg)*60
-	
-  -- degrees, decimal minutes.
-	latMin = roundNumber(latMin, acc)
-	lonMin = roundNumber(lonMin, acc)
-	
-	if latMin == 60 then
-		latMin = 0
-		latDeg = latDeg + 1
-	end
+	if JTAC_latLngFormat == "DMS" then	-- degrees, minutes, and seconds.
+		local oldLatMin = latMin
+		latMin = math.floor(latMin)
+		local latSec = roundNumber((oldLatMin - latMin)*60, acc)
 		
-	if lonMin == 60 then
-		lonMin = 0
-		lonDeg = lonDeg + 1
-	end
-	
-	local minFrmtStr -- create the formatting string for the minutes place
-	if acc <= 0 then  -- no decimal place.
-		minFrmtStr = '%02d'
-	else
-		local width = 3 + acc  -- 01.310 - that's a width of 6, for example.
-		minFrmtStr = '%0' .. width .. '.' .. acc .. 'f'
-	end
-	
-	return string.format('%02d', latDeg) .. ' ' .. string.format(minFrmtStr, latMin) .. '\'' .. latHemi .. '   '
-   .. string.format('%02d', lonDeg) .. ' ' .. string.format(minFrmtStr, lonMin) .. '\'' .. lonHemi
+		local oldLonMin = lonMin
+		lonMin = math.floor(lonMin)
+		local lonSec = roundNumber((oldLonMin - lonMin)*60, acc)
+		if latSec == 60 then
+			latSec = 0
+			latMin = latMin + 1
+		end
 
+		if lonSec == 60 then
+			lonSec = 0
+			lonMin = lonMin + 1
+		end
+
+		local secFrmtStr -- create the formatting string for the seconds place
+		if acc <= 0 then	-- no decimal place.
+			secFrmtStr = '%02d'
+	else
+			local width = 3 + acc	-- 01.310 - that's a width of 6, for example.
+			secFrmtStr = '%0' .. width .. '.' .. acc .. 'f'
+		end
+
+		return string.format('%02d', latDeg) .. ' ' .. string.format('%02d', latMin) .. '\' ' .. string.format(secFrmtStr, latSec) .. '"' .. latHemi .. '	 '
+		.. string.format('%02d', lonDeg) .. ' ' .. string.format('%02d', lonMin) .. '\' ' .. string.format(secFrmtStr, lonSec) .. '"' .. lonHemi
+
+		else	-- degrees, decimal minutes.
+		latMin = roundNumber(latMin, acc)
+		lonMin = roundNumber(lonMin, acc)
+
+		if latMin == 60 then
+		latMin = 0
+			latDeg = latDeg + 1
+		end
+
+		if lonMin == 60 then
+			lonMin = 0
+			lonDeg = lonDeg + 1
+		end
+
+		local minFrmtStr -- create the formatting string for the minutes place
+		if acc <= 0 then	-- no decimal place.
+			minFrmtStr = '%02d'
+		else
+			local width = 3 + acc	-- 01.310 - that's a width of 6, for example.
+			minFrmtStr = '%0' .. width .. '.' .. acc .. 'f'
+		end
+
+		return string.format('%02d', latDeg) .. ' ' .. string.format(minFrmtStr, latMin) .. '\'' .. latHemi .. '	 '
+		.. string.format('%02d', lonDeg) .. ' ' .. string.format(minFrmtStr, lonMin) .. '\'' .. lonHemi
+
+	end
 end
 
 -- source of Function MIST - https://github.com/mrSkortch/MissionScriptingTools/blob/master/mist.lua

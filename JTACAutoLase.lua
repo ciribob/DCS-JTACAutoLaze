@@ -186,7 +186,7 @@ function JTACAutoLase(jtacGroupName, laserCode,smoke,lock,colour)
             -- store current target for easy lookup
             GLOBAL_JTAC_CURRENT_TARGETS[jtacGroupName] = { name = enemyUnit:getName(), unitType = enemyUnit:getTypeName(), unitId = enemyUnit:getID() }
 
-            notify(jtacGroupName .. " lasing new target " .. enemyUnit:getTypeName() .. '. CODE: ' .. laserCode ..getPositionString(enemyUnit) , 10)
+            notify(jtacGroupName .. " lasing new target " .. enemyUnit:getTypeName() .. '. CODE: ' .. laserCode .. getPositionString(enemyUnit) .. " " .. heightString(enemyUnit) , 10)
 
             -- create smoke
             if smoke == true then
@@ -547,7 +547,7 @@ function getJTACStatus()
             end
 
             if enemyUnit ~= nil and enemyUnit:getLife() > 0 and enemyUnit:isActive() == true then
-                message = message .. "" .. jtacGroupName .. " targeting " .. enemyUnit:getTypeName().. " CODE: ".. laserCode .. getPositionString(enemyUnit) .. "\n"
+                message = message .. "" .. jtacGroupName .. " targeting " .. enemyUnit:getTypeName().. " CODE: ".. laserCode .. getPositionString(enemyUnit) .. " " .. heightString(enemyUnit) .. "\n"
             else
                 message = message .. "" .. jtacGroupName .. " searching for targets" .. getPositionString(jtacUnit) .."\n"
             end
@@ -694,6 +694,15 @@ end
 		       .. ' ' .. string.format('%0' .. acc .. 'd', roundNumber(MGRS.Northing/(10^(5-acc)), 0))
 	end
 end
+
+function heightString(unit)
+	local pos = unit:getPosition().p
+	local heightMeters = land.getHeight({x = pos.x, y = pos.z})
+	local heightMetersRounded = roundNumber(heightMeters, 0)
+	local heightFeetRounded = roundNumber(heightMeters * 3.28084, 0)
+	return string.format('ELEVATION: %dm / %dft', heightMetersRounded, heightFeetRounded)
+end
+
 -- From http://lua-users.org/wiki/SimpleRound
  function roundNumber(num, idp)
   local mult = 10^(idp or 0)

@@ -1,7 +1,7 @@
 # THIS SCRIPT IS DEPRECATED AND IS PART OF CTLD - USE CTLDs VERSION https://github.com/ciribob/DCS-CTLD#jtac-automatic-targeting-and-laser 
 
 
-# JTAC Automatic Targeting and Laser Script
+# DEPRECTATED - JTAC Automatic Targeting and Laser Script
 
 Allows a JTAC to mark and hold an IR and Laser point on a target allowing TGP's to lock onto the lase and ease
 of target location using NV Goggles
